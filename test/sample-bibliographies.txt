@@ -1,0 +1,31 @@
+================================================================================
+FOM LITERATURVERZEICHNIS - TESTKORPUS FÜR FORMATA VALIDATOR
+================================================================================
+
+[FALL 1: Statistisches Bundesamt - Offizielle Quelle, Grüne Einstufung]
+Statistisches Bundesamt (2024): Hochschulen auf einen Blick.
+URL: <https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bildung-Forschung-Kultur/Hochschulen/_inhalt.html>, Zugriff am: 15.01.2024.
+
+[FALL 2: Wissenschaftliches Journal mit DOI und starkem Tracking-Befall]
+Müller, K. / Schmidt, T. (2023): Cross-Origin Resource Sharing in modernen Web-Architekturen. In: Journal of Web Science, 12(3), S. 112–129.
+DOI: <https://doi.org/10.1007/s00287-020-01300-3?utm_source=twitter&utm_medium=academic_share&utm_campaign=springer2023&fbclid=IwAR29_test123>, Zugriff am: 12.02.2024.
+
+[FALL 3: Nicht zitierfähige Quelle - Wikipedia (Rote Einstufung)]
+Wikipedia (2024): Web Engineering und Softwarequalität.
+URL: https://de.wikipedia.org/wiki/Web_Engineering, Zugriff am: 18.02.2024.
+
+[FALL 4: Laien-Forum - Gutefrage.net (Rote Einstufung)]
+Ratgeber-Community (2023): Wie funktioniert CORS im Browser?
+URL: <https://www.gutefrage.net/frage/wie-funktioniert-cors>, Zugriff am: 20.03.2023.
+
+[FALL 5: Flüchtige Kurz-URL - URL Shortener (Gelbe Warnung)]
+WebTech Blog (2023): Zusammenfassung der HTTP-Spezifikation RFC 9110.
+URL: <https://bit.ly/fom-web-tech-demo>, Zugriff am: 05.04.2023.
+
+[FALL 6: Dead Link - HTTP 404 Fehlerquelle]
+Altes Webarchiv (2020): Veraltete Ressource zur Webentwicklung.
+URL: <https://httpstat.us/404>, Zugriff am: 11.05.2021.
+
+[FALL 7: Offizielle Universitäts-Domain (Grüne Einstufung)]
+Harvard University (2024): Computer Science and Distributed Systems.
+URL: https://www.harvard.edu/, Zugriff am: 01.03.2024.

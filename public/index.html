@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formata | Bibliography & Link Integrity Validator</title>
+  <meta name="description" content="Akademisches Prüfwerkzeug für Literaturverzeichnisse: Syntaxprüfung, Tracking-Hygiene, Domain-Scoring und serverseitige Erreichbarkeitsvalidierung.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2226%22>📚</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation / Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-logo">F</div>
+        <div class="brand-text">
+          <h1 class="brand-title">Formata</h1>
+          <span class="brand-subtitle">Bibliography & Link Integrity Validator</span>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="pill-tag">FOM Modul: Web Technologie</span>
+        <span class="pill-tag pill-muted">v1.0 Prototyp</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-container">
+
+    <!-- Hero / Intro Information -->
+    <section class="intro-section">
+      <div class="intro-card">
+        <h2>Wissenschaftliche Quellenprüfung per Mausklick</h2>
+        <p>
+          Fügen Sie Ihr Literaturverzeichnis ein. <strong>Formata</strong> isoliert extrahierte URLs, bereinigt Marketing- und Tracking-Parameter (z.&nbsp;B. <code>utm_*</code>), gleicht Quellen mit akademischen Richtlinien ab (z.&nbsp;B. Wikipedia-Sperre) und prüft die serverseitige Erreichbarkeit über einen CORS-Proxy.
+        </p>
+      </div>
+    </section>
+
+    <!-- Input Section -->
+    <section class="input-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <label for="bibInput" class="card-title">Literaturverzeichnis einfügen</label>
+            <span class="card-hint">Unterstützt Formate nach FOM-Leitfaden (z. B. <code>&lt;https://...&gt;</code> oder <code>https://..., Zugriff am...</code>)</span>
+          </div>
+          <div class="input-actions">
+            <button id="btnLoadSample" class="btn btn-sm btn-secondary" type="button" title="Lädt ein typisches universitäres Test-Verzeichnis">
+              📄 FOM-Beispiel laden
+            </button>
+            <button id="btnClear" class="btn btn-sm btn-outline-danger" type="button" title="Eingabe zurücksetzen">
+              🗑️ Leeren
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <textarea 
+            id="bibInput" 
+            class="bib-textarea" 
+            rows="10" 
+            placeholder="Fügen Sie hier Ihr Literaturverzeichnis per Copy & Paste ein...&#10;&#10;Beispiel:&#10;Müller, K. (2024): Moderne Web-Technologien.&#10;URL: <https://doi.org/10.1007/s00287-020-01300-3?utm_source=social>, Zugriff am 10.02.2024."></textarea>
+        </div>
+
+        <div class="card-footer">
+          <div class="action-bar">
+            <button id="btnValidate" class="btn btn-primary btn-large" type="button">
+              <span>🔍 Literaturverzeichnis prüfen</span>
+            </button>
+            <span class="keyboard-hint text-muted">Tipp: Erkennt spitze Klammern, Tracking-Parameter und tote Links automatisch.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress Indicator -->
+    <section id="progressContainer" class="progress-section" style="display: none;">
+      <div class="progress-bar-container">
+        <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+      <div id="progressText" class="progress-label">Initialisiere Prüfung...</div>
+    </section>
+
+    <!-- Results Section -->
+    <section id="resultsSection" class="results-section" style="display: none;">
+      
+      <!-- Summary Metric Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card metric-total">
+          <div class="metric-icon">📑</div>
+          <div class="metric-info">
+            <div id="statTotal" class="metric-value">0</div>
+            <div class="metric-title">Geprüfte URLs</div>
+          </div>
+        </div>
+
+        <div class="metric-card metric-valid">
+          <div class="metric-icon">🟢</div>
+          <div class="metric-info">
+            <div id="statValid" class="metric-value">0</div>
+            <div class="metric-title">Erreichbar (200 OK)</div>
+          </div>
+        </div>
+
+        <div class="metric-card metric-cleaned">
+          <div class="metric-icon">🟡</div>
+          <div class="metric-info">
+            <div id="statCleaned" class="metric-value">0</div>
+            <div class="metric-title">Tracking Bereinigt</div>
+          </div>
+        </div>
+
+        <div class="metric-card metric-issues">
+          <div class="metric-icon">🔴</div>
+          <div class="metric-info">
+            <div id="statIssues" class="metric-value">0</div>
+            <div class="metric-title">Fehler & Auffälligkeiten</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Toolbar for Results -->
+      <div class="results-toolbar">
+        <div class="filter-group">
+          <span class="filter-label">Ansicht:</span>
+          <button class="filter-btn active" data-filter="all">Alle</button>
+          <button class="filter-btn" data-filter="valid">🟢 Nur Gültige</button>
+          <button class="filter-btn" data-filter="cleaned">🟡 Nur Bereinigte</button>
+          <button class="filter-btn" data-filter="issues">🔴 Nur Probleme</button>
+          <span id="activeFilterCount" class="filter-count text-muted"></span>
+        </div>
+
+        <div class="export-group">
+          <button id="btnCopyCleanedText" class="btn btn-secondary btn-sm" title="Ersetzt unsaubere URLs direkt im Originaltext">
+            📋 Bereinigtes Literaturverzeichnis kopieren
+          </button>
+          <button id="btnExportCsv" class="btn btn-outline btn-sm" title="Lade Prüfdaten für Seminararbeit herunter">
+            💾 CSV-Bericht exportieren
+          </button>
+        </div>
+      </div>
+
+      <!-- Detailed Results Table -->
+      <div class="card table-card">
+        <div class="table-responsive">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;" class="text-center">#</th>
+                <th style="width: 170px;">HTTP Status</th>
+                <th>Bereinigte URL & Diff</th>
+                <th style="width: 220px;">Akademische Bewertung</th>
+                <th style="width: 100px;">Latenz</th>
+                <th style="width: 120px;" class="text-center">Aktion</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <!-- Dynamisch durch app.js befüllt -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <strong>Formata</strong> &mdash; Wissenschaftlicher Prototyp für das Modul Web Technologie.
+      </div>
+      <div class="footer-right">
+        <span>Architektur: Vanilla JS + Node.js CORS Proxy auf Vercel</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="toast"></div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/parser.js"></script>
+  <script src="js/hygiene.js"></script>
+  <script src="js/domain-rules.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

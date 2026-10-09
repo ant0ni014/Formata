@@ -1,0 +1,25 @@
+{
+  "name": "formata",
+  "version": "1.0.0",
+  "description": "Formata - Bibliography & Link Validator for Academic Papers",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/test-validator.js"
+  },
+  "keywords": [
+    "bibliography",
+    "link-validator",
+    "academic",
+    "fom",
+    "cors-proxy"
+  ],
+  "author": "Formata Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
