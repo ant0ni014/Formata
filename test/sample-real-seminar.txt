@@ -1,0 +1,47 @@
+Ahmed, Saja Taha, George, Loay E. (2022): Lightweight hash-based de-duplication system
+using the self detection of most repeated patterns as chunks divisors, in: Journal of
+King Saud University – Computer and Information Sciences, 34, Nr. 7, S. 4669–4678,
+doi: 10.1016/j.jksuci.2021.04.005
+Alzahrani, Saleh, Xiao, Yang, Asiri, Sultan, Zheng, Jianying, Li, Tieshan (2025): A Survey
+of Ransomware Detection Methods, in: IEEE Access, 13, S. 57943–57982, doi:
+10.1109/ACCESS.2025.3556187
+Amazon Web Services (AWS) (2023): Establishing RPO and RTO Targets for Cloud
+Applications, https://aws.amazon.com/de/blogs/mt/establishing-rpo-and-rto-targetsfor-cloud-applications/ [Zugriff: 27. 02. 2026]
+Bitkom (2016): Backup / Recovery / Disaster Recovery, https://www.bitkom.org/sites/
+main/files/file/import/170125-LF-Backup-Recovery.pdf [Zugriff: 27. 02. 2026]
+Bundesamt für Sicherheit in der Informationstechnik (BSI) (2023): Vorschläge zu BusinessContinuity Strategien (BC-Strategien), https://www. bsi. bund. de/ SharedDocs/
+Downloads/DE/BSI/Grundschutz/Hilfsmittel/Standard200_4_BCM/Standard_200-
+4_Vorschlaege_zu_BC_Strategien.pdf [Zugriff: 27. 02. 2026]
+European Union Agency for Cybersecurity (ENISA) (2025): ENISA Threat Landscape
+2025, https://www.enisa.europa.eu/sites/default/files/2026-01/ENISA%20Threat%
+20Landscape%202025_v1.2.pdf [Zugriff: 27. 02. 2026]
+Kesa, Derick Musundi (2023): Ensuring resilience: Integrating IT disaster recovery
+planning and business continuity for sustainable information technology operations,
+in: World Journal of Advanced Research and Reviews, 18, Nr. 3, S. 970–992, doi:
+10.30574/wjarr.2023.18.3.1166
+Microsoft (2026): Failover and failback, https://docs.azure.cn/en-us/reliability/conceptfailover-failback [Zugriff: 27. 02. 2026]
+Morgado, Julia Furst (2025): Was ist die 3-2-1-Backup-Regel?, https://www.veeam.com/
+blog/de/321-backup-rule.html [Zugriff: 27. 02. 2026]
+Müller, Patrick, Chamera, Vanessa, Bodenstein, Martin (2024): Datensicherung als Teil
+der IT- und Cybersecurity, Springer Gabler, 2024, doi: 10.1007/978-3-658-43701-5
+National Institute of Standards and Technology (NIST) (2020): Security and Privacy
+Controls for Information Systems and Organizations, Techn. Ber., National Institute
+of Standards and Technology, 2020, doi: 10.6028/NIST.SP.800-53r5
+Renner, Stefan (2016): Backups und Storage-Snapshots: Die perfekte Kombination für das
+Always-On Enterprise, https://www.veeam.com/blog/de/how-snapshots-backupswork-together.html [Zugriff: 27. 02. 2026]
+Rose, Scott, Borchert, Oliver, Mitchell, Stu, Connelly, Sean (2020): Zero Trust Architecture,
+Techn. Ber., National Institute of Standards and Technology, 2020, doi: 10.6028/
+NIST.SP.800-207
+SNIA Data Protection & Privacy Committee (SNIA) (2025): Data Protection Best Practices,
+https://www.snia.org/sites/default/files/2025- 03/SNIA-Data-Protection-BestPractice-2025-01-27-v2.pdf [Zugriff: 27. 02. 2026]
+Spanning (2023): Types of Backup: Understanding Full, Differential & Incremental Backup,
+https://www.spanning.com/blog/types-of-backup-understanding-full-differentialincremental-backup/ [Zugriff: 27. 02. 2026]
+Statista (2025): Von digitalen Angriffen betroffene Unternehmen nach Art des Angriffs,
+https://de.statista.com/statistik/daten/studie/928943/ [Zugriff: 27. 02. 2026]
+Swanson, Marianne, Bowen, Pauline, Phillips, Amy, Gallup, Dean, Lynes, David (2010):
+Contingency Planning Guide for Federal Information Systems, Techn. Ber., National
+Institute of Standards and Technology, 2010, doi: 10.6028/NIST.SP.800-34r1
+Wood, Timothy, Cecchet, Emmanuel, Ramakrishnan, K., Shenoy, Prashant, van der Merwe,
+Jacobus (2010): Disaster Recovery as a Cloud Service: Economic Benefits and
+Deployment Challenges, https://www.usenix.org/legacy/event/hotcloud10/tech/full_
+papers/Wood.pdf [Zugriff: 27. 02. 2026]

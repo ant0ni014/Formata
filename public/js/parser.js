@@ -1,12 +1,15 @@
 /**
  * Formata - Module: parser.js
- * Extrahiert URLs aus Fließtexten und akademischen Literaturverzeichnissen.
- * Berücksichtigt typische FOM-Zitierformen (<URL>, freistehend, nachfolgendes Zugriffsdatum).
+ * Extrahiert URLs und DOIs aus Fließtexten und akademischen Literaturverzeichnissen.
+ * Berücksichtigt typische FOM-Zitierformen (<URL>, freistehend, nachfolgendes Zugriffsdatum,
+ * sowie PDF-spezifische Zeilenumbrüche und Leerzeichenartefakte).
  */
 
 const FormataParser = (() => {
   // Regex für URL-Kandidaten (HTTP/HTTPS)
   const RAW_URL_REGEX = /https?:\/\/[^\s<>"]+/gi;
+  // Regex für DOIs (z.B. doi: 10.1016/... oder https://doi.org/10....)
+  const DOI_REGEX = /\bdoi\s*:\s*(10\.\d{4,9}\/[^\s\n\r]+)/gi;
 
   /**
    * Bereinigt nachgestellte Satzzeichen, die typischerweise am Ende
@@ -20,7 +23,7 @@ const FormataParser = (() => {
     if (clean.endsWith('>')) clean = clean.substring(0, clean.length - 1);
 
     // Entfernt nachgestellte Interpunktionszeichen
-    const invalidEndingChars = ['.', ',', ';', ':', ')', ']', '"', '\'', '»', '«'];
+    const invalidEndingChars = ['.', ',', ';', ':', ')', ']', '"', '\'', '»', '«', '>'];
     while (clean.length > 0 && invalidEndingChars.includes(clean[clean.length - 1])) {
       clean = clean.substring(0, clean.length - 1);
     }
@@ -29,25 +32,81 @@ const FormataParser = (() => {
   }
 
   /**
-   * Extrahiert eindeutige URLs und deren Vorkommen im Text
+   * Vorverarbeitung für typische PDF-Kopier-Artefakte:
+   * - Zeilenumbrüche mitten in URLs vor Zugriffsvermerken ([Zugriff: ...])
+   * - Zeilenumbrüche vor/innerhalb von DOI-Bezeichnern (z. B. "doi:\n10.1109/..." oder "10.6028/\nNIST...")
+   * - Leerzeichenartefakte in Domains (z. B. "https://www. bsi. bund. de/")
+   */
+  function preprocessPdfArtifacts(rawText) {
+    if (!rawText || typeof rawText !== 'string') return '';
+
+    let text = rawText.replace(/\r\n/g, '\n');
+
+    // 1. Repariere Zeilenumbrüche innerhalb von DOIs
+    text = text.replace(/doi:\s*\n\s*(10\.\d{4,9})/gi, 'doi: $1');
+    text = text.replace(/doi:\s*(10\.\d{4,9}\/)\s*\n\s*([A-Za-z0-9._-]+)/gi, 'doi: $1$2');
+
+    // 2. Repariere Leerzeichen in Domain-Namen (z.B. "https://www. bsi. bund. de/")
+    text = text.replace(/https?:\/\/\s*www\.\s*(?:[a-zA-Z0-9_-]+\s*\.\s*)+[a-zA-Z]{2,6}\s*\//gi, (m) => m.replace(/\s+/g, ''));
+
+    // 3. Repariere URLs, die vor Zugriffsdaten über Zeilenumbrüche oder Leerzeichen umgebrochen wurden
+    // Matcht von "https://" bis zur Zugriffsklausel, aber bricht ab, falls ein zweites http vorkommt
+    text = text.replace(/(https?:\/\/[^\s\[\(\>\n\r]+(?:\s*\n\s*[^\s\[\(\>\n\r]+)+)(\s*(?:\[|\(|,?\s*)Zugriff|\s*\[Stand)/gi, (fullMatch, urlPart, accessTag) => {
+      const cleanUrl = urlPart.replace(/\s+/g, '');
+      return cleanUrl + ' ' + accessTag;
+    });
+
+    // 4. Einzelne Spaces in Pfadsegmenten vor Zugriff reparieren (z. B. "/2025- 03/")
+    text = text.replace(/(https?:\/\/[^\s\[\(\>]+(?:\s+[^\s\[\(\>]+)+)(\s*(?:\[|\(|,?\s*)Zugriff|\s*\[Stand)/gi, (m, urlPart, accessTag) => {
+      if (!urlPart.includes('http://') && !urlPart.includes('https://', 7)) {
+        return urlPart.replace(/\s+/g, '') + ' ' + accessTag;
+      }
+      return m;
+    });
+
+    return text;
+  }
+
+  /**
+   * Extrahiert eindeutige URLs und DOIs aus dem Text
    */
   function extractUrls(rawText) {
     if (!rawText || typeof rawText !== 'string') {
       return [];
     }
 
-    const matches = rawText.match(RAW_URL_REGEX) || [];
+    const preprocessed = preprocessPdfArtifacts(rawText);
     const extractedList = [];
     const seen = new Set();
 
-    for (const match of matches) {
+    // 1. DOIs extrahieren und in kanonische URLs umwandeln
+    let doiMatch;
+    const doiSearchRegex = new RegExp(DOI_REGEX.source, 'gi');
+    while ((doiMatch = doiSearchRegex.exec(preprocessed)) !== null) {
+      let cleanDoi = stripTrailingPunctuation(doiMatch[1].trim());
+      const canonicalUrl = `https://doi.org/${cleanDoi}`;
+      if (!seen.has(canonicalUrl)) {
+        seen.add(canonicalUrl);
+        extractedList.push({
+          rawMatch: doiMatch[0],
+          url: canonicalUrl,
+          isDoi: true,
+          doi: cleanDoi
+        });
+      }
+    }
+
+    // 2. Reguläre URLs extrahieren
+    const urlMatches = preprocessed.match(RAW_URL_REGEX) || [];
+    for (const match of urlMatches) {
       const sanitized = stripTrailingPunctuation(match);
       if (sanitized && isValidHttpUrl(sanitized)) {
         if (!seen.has(sanitized)) {
           seen.add(sanitized);
           extractedList.push({
             rawMatch: match,
-            url: sanitized
+            url: sanitized,
+            isDoi: sanitized.includes('doi.org/')
           });
         }
       }
@@ -77,7 +136,6 @@ const FormataParser = (() => {
     // urlReplacements: [{ originalUrl, cleanedUrl }]
     for (const item of urlReplacements) {
       if (item.originalUrl && item.cleanedUrl && item.originalUrl !== item.cleanedUrl) {
-        // Globales Ersetzen der spezifischen URL
         const escaped = item.originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const reg = new RegExp(escaped, 'g');
         updatedText = updatedText.replace(reg, item.cleanedUrl);
@@ -89,6 +147,7 @@ const FormataParser = (() => {
 
   return {
     extractUrls,
+    preprocessPdfArtifacts,
     stripTrailingPunctuation,
     isValidHttpUrl,
     reconstructBibliography

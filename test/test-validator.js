@@ -64,6 +64,26 @@ async function runTests() {
     assert.strictEqual(results[1].url, 'https://example.com/info');
   });
 
+  test('Extrahiert reine DOIs (doi: 10.xxxx/...) und wandelt in https://doi.org/ um', () => {
+    const text = 'Ahmed et al. (2022): Deduplication, doi: 10.1016/j.jksuci.2021.04.005, Stand 2024.';
+    const results = FormataParser.extractUrls(text);
+    assert.strictEqual(results.length, 1);
+    assert.strictEqual(results[0].url, 'https://doi.org/10.1016/j.jksuci.2021.04.005');
+  });
+
+  test('Repariert PDF-Zeilenumbrüche in URLs vor Zugriffsdaten', () => {
+    const text = 'Bitkom (2016): Backup, https://www.bitkom.org/sites/\nmain/files/file/import/170125-LF-Backup-Recovery.pdf [Zugriff: 27. 02. 2026]';
+    const results = FormataParser.extractUrls(text);
+    assert.strictEqual(results.length, 1);
+    assert.strictEqual(results[0].url, 'https://www.bitkom.org/sites/main/files/file/import/170125-LF-Backup-Recovery.pdf');
+  });
+
+  test('Extrahiert alle 18 Quellen fehlerfrei aus dem realen Seminararbeits-Korpus', () => {
+    const seminarText = fs.readFileSync(path.join(__dirname, 'sample-real-seminar.txt'), 'utf8');
+    const results = FormataParser.extractUrls(seminarText);
+    assert.strictEqual(results.length, 18, `Erwartet 18 Quellen, aber ${results.length} erhalten`);
+  });
+
   test('Rekonstruiert Text mit ersetzten gesäuberten URLs', () => {
     const original = 'Quelle: <https://test.de/doc?utm_source=tw>, Stand 2024.';
     const replacements = [{

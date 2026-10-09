@@ -187,13 +187,19 @@ async function checkLinkReachability(targetUrl) {
     let methodUsed = "HEAD";
     try {
       response = await executeFetch("HEAD");
-      // Fallback falls HEAD geblockt (405 Method Not Allowed oder 403 Forbidden)
-      if (response.status === 405 || response.status === 403) {
-        methodUsed = "GET";
-        response = await executeFetch("GET");
+      // Fallback auf GET, falls HEAD vom Server abgewiesen wird (z. B. 400, 403, 404, 405 bei BSI/NIST/Archiven)
+      if (!response.ok) {
+        try {
+          const getResponse = await executeFetch("GET");
+          if (getResponse.ok || response.status >= 400) {
+            response = getResponse;
+            methodUsed = "GET";
+          }
+        } catch (_) {
+          // Behalte die ursprüngliche HEAD-Antwort bei Fehlern im GET-Versuch
+        }
       }
     } catch (headErr) {
-      // Falls HEAD netzwerkseitig fehlschlug oder abgebrochen wurde, GET probieren
       if (headErr.name !== "AbortError") {
         methodUsed = "GET";
         response = await executeFetch("GET");
