@@ -46,9 +46,13 @@
         <div class="card-header">
           <div class="card-title-group">
             <label for="bibInput" class="card-title">Literaturverzeichnis einfügen</label>
-            <span class="card-hint">Unterstützt Formate nach FOM-Leitfaden (z. B. <code>&lt;https://...&gt;</code> oder <code>https://..., Zugriff am...</code>)</span>
+            <span class="card-hint">Unterstützt Formate nach FOM-Leitfaden. <strong>Tipp:</strong> Screenshots können auch direkt mit <code>Strg + V</code> eingefügt oder hochgeladen werden!</span>
           </div>
           <div class="input-actions">
+            <button id="btnUploadScreenshot" class="btn btn-sm btn-secondary" type="button" title="Screenshot als Bilddatei hochladen oder mit Strg+V einfügen">
+              📷 Screenshot (OCR)
+            </button>
+            <input type="file" id="screenshotFileInput" accept="image/*" style="display: none;">
             <button id="btnLoadSample" class="btn btn-sm btn-secondary" type="button" title="Lädt ein typisches universitäres Test-Verzeichnis">
               📄 FOM-Beispiel laden
             </button>
@@ -135,6 +139,9 @@
         </div>
 
         <div class="export-group">
+          <button id="btnExportScreenshot" class="btn btn-outline btn-sm" title="Ergebnisübersicht als PNG-Screenshot für den Anhang der Seminararbeit herunterladen">
+            📸 Ergebnis-Screenshot (PNG)
+          </button>
           <button id="btnCopyCleanedText" class="btn btn-secondary btn-sm" title="Ersetzt unsaubere URLs direkt im Originaltext">
             📋 Bereinigtes Literaturverzeichnis kopieren
           </button>
@@ -183,6 +190,10 @@
 
   <!-- Toast Notification Container -->
   <div id="toast" class="toast"></div>
+
+  <!-- OCR (Tesseract.js) & Screenshot Export (html2canvas) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   <!-- JavaScript Modules -->
   <script src="js/parser.js"></script>

@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCopyCleanedText: document.getElementById('btnCopyCleanedText'),
     btnExportCsv: document.getElementById('btnExportCsv'),
     
+    btnUploadScreenshot: document.getElementById('btnUploadScreenshot'),
+    screenshotFileInput: document.getElementById('screenshotFileInput'),
+    btnExportScreenshot: document.getElementById('btnExportScreenshot'),
+    
     // Status & Feedback
     progressContainer: document.getElementById('progressContainer'),
     progressBar: document.getElementById('progressBar'),
@@ -85,6 +89,30 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     elements.btnCopyCleanedText.addEventListener('click', handleCopyCleanedBibliography);
 
     elements.btnExportCsv.addEventListener('click', handleExportCsv);
+
+    if (elements.btnExportScreenshot) {
+      elements.btnExportScreenshot.addEventListener('click', handleExportScreenshot);
+    }
+
+    if (elements.btnUploadScreenshot && elements.screenshotFileInput) {
+      elements.btnUploadScreenshot.addEventListener('click', () => {
+        elements.screenshotFileInput.click();
+      });
+
+      elements.screenshotFileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          processScreenshotOcr(file);
+          e.target.value = ''; // Reset für erneute Auswahl
+        }
+      });
+    }
+
+    // Strg + V Event für Bild-/Screenshot-Einfügen
+    window.addEventListener('paste', handlePasteEvent);
+
+    // Drag & Drop für Screenshots
+    setupDragAndDrop();
 
     elements.filterBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -438,6 +466,139 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
+    }
+  }
+
+  /**
+   * Fängt Screenshots ab, die per Strg+V in die Zwischenablage kopiert wurden
+   */
+  function handlePasteEvent(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          processScreenshotOcr(file);
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * Richtet Drag & Drop für Screenshots auf dem Textarea ein
+   */
+  function setupDragAndDrop() {
+    const area = elements.bibInput;
+    if (!area) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      area.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        area.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      area.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        area.classList.remove('dragover');
+      });
+    });
+
+    area.addEventListener('drop', (e) => {
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+        processScreenshotOcr(files[0]);
+      }
+    });
+  }
+
+  /**
+   * Führt OCR auf einem Screenshot-Bild durch (via Tesseract.js)
+   */
+  async function processScreenshotOcr(imageFile) {
+    if (typeof Tesseract === 'undefined') {
+      showToast('OCR-Modul wird noch geladen, bitte einen Moment gedulden...', 'warning');
+      return;
+    }
+
+    setLoadingState(true);
+    updateProgress(10, '📷 Screenshot erkannt! Initialisiere OCR-Texterkennung...');
+
+    try {
+      const result = await Tesseract.recognize(
+        imageFile,
+        'deu+eng',
+        {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const pct = Math.round((m.progress || 0) * 100);
+              updateProgress(Math.min(90, Math.max(15, pct)), `📷 Lese Text aus Screenshot... ${pct}%`);
+            }
+          }
+        }
+      );
+
+      const recognizedText = result?.data?.text?.trim();
+
+      if (!recognizedText) {
+        throw new Error('Kein lesbarer Text im Screenshot gefunden.');
+      }
+
+      elements.bibInput.value = recognizedText;
+      updateProgress(100, 'OCR-Erkennung abgeschlossen! Starte Validierung...');
+      showToast('Text erfolgreich per OCR aus Screenshot extrahiert! ✨');
+
+      // Automatisch Validierung starten
+      setTimeout(() => {
+        handleValidate();
+      }, 500);
+
+    } catch (err) {
+      console.error('OCR Fehler:', err);
+      setLoadingState(false);
+      showToast(`OCR-Fehler: ${err.message}`, 'error');
+    }
+  }
+
+  /**
+   * Erstellt einen PNG-Screenshot der Validierungsergebnisse via html2canvas
+   */
+  async function handleExportScreenshot() {
+    if (typeof html2canvas === 'undefined') {
+      showToast('Screenshot-Modul lädt noch, bitte kurz warten...', 'warning');
+      return;
+    }
+
+    if (!elements.resultsSection || elements.resultsSection.style.display === 'none') {
+      showToast('Keine Ergebnisse zum Fotografieren vorhanden.', 'warning');
+      return;
+    }
+
+    showToast('Erstelle Screenshot der Prüfergebnisse...');
+
+    try {
+      const canvas = await html2canvas(elements.resultsSection, {
+        scale: 2,
+        backgroundColor: '#f8fafc',
+        useCORS: true
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `formata-ergebnisbericht-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Ergebnis-Screenshot erfolgreich als PNG gespeichert! 📸');
+    } catch (err) {
+      console.error('Fehler bei Screenshot-Erstellung:', err);
+      showToast(`Screenshot-Fehler: ${err.message}`, 'error');
     }
   }
 

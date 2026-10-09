@@ -252,6 +252,12 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 168, 150, 0.15);
 }
 
+.bib-textarea.dragover {
+  border-color: var(--accent);
+  background-color: var(--accent-light);
+  box-shadow: 0 0 0 4px rgba(0, 168, 150, 0.25);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
