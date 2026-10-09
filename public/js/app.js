@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCopyCleanedText: document.getElementById('btnCopyCleanedText'),
     btnExportCsv: document.getElementById('btnExportCsv'),
     
+    btnUploadPdf: document.getElementById('btnUploadPdf'),
+    pdfFileInput: document.getElementById('pdfFileInput'),
     btnUploadScreenshot: document.getElementById('btnUploadScreenshot'),
     screenshotFileInput: document.getElementById('screenshotFileInput'),
     btnExportScreenshot: document.getElementById('btnExportScreenshot'),
@@ -89,6 +91,20 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     elements.btnCopyCleanedText.addEventListener('click', handleCopyCleanedBibliography);
 
     elements.btnExportCsv.addEventListener('click', handleExportCsv);
+
+    if (elements.btnUploadPdf && elements.pdfFileInput) {
+      elements.btnUploadPdf.addEventListener('click', () => {
+        elements.pdfFileInput.click();
+      });
+
+      elements.pdfFileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          processPdfFile(file);
+          e.target.value = '';
+        }
+      });
+    }
 
     if (elements.btnExportScreenshot) {
       elements.btnExportScreenshot.addEventListener('click', handleExportScreenshot);
@@ -521,7 +537,7 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
   }
 
   /**
-   * Richtet Drag & Drop für Screenshots auf dem Textarea ein
+   * Richtet Drag & Drop für PDFs und Screenshots auf dem Textarea ein
    */
   function setupDragAndDrop() {
     const area = elements.bibInput;
@@ -542,11 +558,111 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     });
 
     area.addEventListener('drop', (e) => {
+      e.preventDefault();
+      area.classList.remove('dragover');
       const files = e.dataTransfer?.files;
-      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
-        processScreenshotOcr(files[0]);
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        processPdfFile(file);
+      } else if (file.type.startsWith('image/')) {
+        processScreenshotOcr(file);
       }
     });
+  }
+
+  /**
+   * Extrahiert Text und Literaturverzeichnis aus einer PDF-Datei (via PDF.js)
+   */
+  async function processPdfFile(pdfFile) {
+    if (typeof pdfjsLib === 'undefined') {
+      showToast('PDF-Modul wird noch geladen, bitte einen Moment gedulden...', 'warning');
+      return;
+    }
+
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    } catch (_) {}
+
+    setLoadingState(true);
+    updateProgress(10, `📄 Lese PDF "${pdfFile.name}" ein...`);
+
+    try {
+      const arrayBuffer = await pdfFile.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      let fullText = '';
+      const totalPages = pdf.numPages;
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const pct = Math.round(15 + (pageNum / totalPages) * 70);
+        updateProgress(pct, `📄 Extrahiere Text aus PDF-Seite ${pageNum} von ${totalPages}...`);
+        
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // Füge Textzeilen mit Layout-Beachtung zusammen
+        let lastY = null;
+        let pageLines = [];
+        let currentLine = '';
+
+        for (const item of textContent.items) {
+          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+            pageLines.push(currentLine.trim());
+            currentLine = '';
+          }
+          currentLine += (currentLine.length > 0 && !currentLine.endsWith(' ') && !item.str.startsWith(' ') ? ' ' : '') + item.str;
+          lastY = item.transform[5];
+        }
+        if (currentLine.trim().length > 0) {
+          pageLines.push(currentLine.trim());
+        }
+
+        fullText += pageLines.join('\n') + '\n\n';
+      }
+
+      updateProgress(88, 'Suche Literaturverzeichnis in der PDF...');
+
+      // Intelligente Extraktion des Literaturverzeichnisses
+      // Sucht nach Kapitelüberschriften wie "Literaturverzeichnis", "Quellenverzeichnis", "Bibliography", "References"
+      let bibliographyText = '';
+      const bibHeaderRegex = /(?:^|\n)\s*(?:\d+[\.\s]*)?(Literaturverzeichnis|Quellenverzeichnis|Literatur-|Quellen-|Bibliography|References)\b/i;
+      const match = fullText.match(bibHeaderRegex);
+
+      if (match && match.index !== undefined) {
+        const afterHeader = fullText.substring(match.index);
+        // Ende des Verzeichnisses (z. B. Anhang, Eidesstattliche Erklärung etc.)
+        const appendixRegex = /(?:^|\n)\s*(?:\d+[\.\s]*)?(Anhang|Ehrenw[oö]rtliche\s+Erkl[aä]rung|Eidesstattliche\s+Versicherung|Appendix)\b/i;
+        const appendixMatch = afterHeader.match(appendixRegex);
+        if (appendixMatch && appendixMatch.index !== undefined && appendixMatch.index > 80) {
+          bibliographyText = afterHeader.substring(0, appendixMatch.index).trim();
+        } else {
+          bibliographyText = afterHeader.trim();
+        }
+      }
+
+      const finalText = bibliographyText || fullText.trim();
+
+      if (!finalText) {
+        throw new Error('In der PDF konnte kein Text gefunden werden (evtl. reines Bild-Scan-PDF ohne Textebene).');
+      }
+
+      elements.bibInput.value = finalText;
+      updateProgress(100, `PDF erfolgreich eingelesen (${totalPages} Seiten)! Starte Validierung...`);
+      showToast(`PDF verarbeitet: Literaturverzeichnis aus ${totalPages} Seiten extrahiert! ✨`);
+
+      // Automatisch Validierung starten
+      setTimeout(() => {
+        handleValidate();
+      }, 500);
+
+    } catch (err) {
+      console.error('PDF Verarbeitungsfehler:', err);
+      setLoadingState(false);
+      showToast(`PDF-Fehler: ${err.message}`, 'error');
+    }
   }
 
   /**

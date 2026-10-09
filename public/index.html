@@ -46,15 +46,19 @@
         <div class="card-header">
           <div class="card-title-group">
             <label for="bibInput" class="card-title">Literaturverzeichnis einfügen</label>
-            <span class="card-hint">Unterstützt Formate nach FOM-Leitfaden. <strong>Tipp:</strong> Screenshots können auch direkt mit <code>Strg + V</code> eingefügt oder hochgeladen werden!</span>
+            <span class="card-hint">Unterstützt Formate nach FOM-Leitfaden. <strong>Tipp:</strong> Sie können auch direkt Ihre fertige <strong>Seminararbeit als PDF</strong> oder Screenshots hochladen!</span>
           </div>
           <div class="input-actions">
+            <button id="btnUploadPdf" class="btn btn-sm btn-primary" type="button" title="Ganze Seminararbeit als PDF hochladen (extrahiert Literaturverzeichnis automatisch)">
+              📄 PDF hochladen
+            </button>
+            <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
             <button id="btnUploadScreenshot" class="btn btn-sm btn-secondary" type="button" title="Screenshot als Bilddatei hochladen oder mit Strg+V einfügen">
               📷 Screenshot (OCR)
             </button>
             <input type="file" id="screenshotFileInput" accept="image/*" style="display: none;">
             <button id="btnLoadSample" class="btn btn-sm btn-secondary" type="button" title="Lädt ein typisches universitäres Test-Verzeichnis">
-              📄 FOM-Beispiel laden
+              📑 Beispiel laden
             </button>
             <button id="btnClear" class="btn btn-sm btn-outline-danger" type="button" title="Eingabe zurücksetzen">
               🗑️ Leeren
@@ -191,7 +195,8 @@
   <!-- Toast Notification Container -->
   <div id="toast" class="toast"></div>
 
-  <!-- OCR (Tesseract.js) & Screenshot Export (html2canvas) -->
+  <!-- PDF Parsing (pdf.js), OCR (Tesseract.js) & Screenshot Export (html2canvas) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
