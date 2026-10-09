@@ -195,6 +195,61 @@ async function runTests() {
     assert.strictEqual(doi.removedParams.includes('utm_source'), true);
   });
 
+  // ----------------------------------------------------
+  // TEST-GRUPPE 5: Zitierstile, Fußnoten & Buch-Erkennung
+  // ----------------------------------------------------
+  console.log('\n📌 Test-Gruppe 5: Zitierstile, Fußnoten & Buch-Erkennung');
+
+  const FormataCitationDetector = require('../public/js/citation-detector');
+
+  test('Erkennt FOM / Harvard Zitierstil zuverlässig', () => {
+    const text = `
+      Müller, K. (2023): Web-Architekturen im universitären Umfeld, Wiesbaden: Springer.
+      Schmidt, T. (2022): IT-Sicherheitskonzepte für Webanwendungen, Berlin: De Gruyter.
+    `;
+    const style = FormataCitationDetector.detectCitationStyle(text);
+    assert.strictEqual(style.style, 'harvard_fom');
+  });
+
+  test('Erkennt Deutsche Zitierweise (Fußnoten-Methode)', () => {
+    const footnoteText = `
+      1 Vgl. Mustermann, Max (2023): Cloud-Sicherheit, S. 45.
+      2 Vgl. Schmidt, Anna (2022): Verlässliche Systeme, S. 12-14.
+      3 Siehe Bundesamt für Sicherheit in der Informationstechnik (2024), S. 8.
+    `;
+    const style = FormataCitationDetector.detectCitationStyle(footnoteText);
+    assert.strictEqual(style.style, 'footnote');
+  });
+
+  test('Erkennt IEEE-Zitierstil (nummerierte eckige Klammern)', () => {
+    const ieeeText = `
+      [1] J. Doe, "High Performance Computing," IEEE Trans., 2023.
+      [2] K. Smith, "Cloud Architecture Reviews," ACM Computing, 2022.
+    `;
+    const style = FormataCitationDetector.detectCitationStyle(ieeeText);
+    assert.strictEqual(style.style, 'ieee');
+  });
+
+  test('Extrahiert gedruckte Bücher und ISBN-Nummern', () => {
+    const bookBib = `
+      Tanenbaum, Andrew S., Wetherall, David J. (2021): Computernetzwerke, Pearson Studium. ISBN 978-3-86894-137-1.
+    `;
+    const books = FormataCitationDetector.extractBooksAndPrintSources(bookBib);
+    assert.strictEqual(books.length, 1);
+    assert.strictEqual(books[0].hasIsbn, true);
+    assert.strictEqual(books[0].isbn, '9783868941371');
+  });
+
+  test('Prüft Plausibilität von Autor und Publikationsjahr', () => {
+    const checkFuture = FormataCitationDetector.checkAuthorAndYearPlausibility('Mustermann, M. (2048): Zukunft der IT.');
+    assert.strictEqual(checkFuture.isValid, false);
+    assert.strictEqual(checkFuture.issues.some(i => i.includes('Zukunft')), true);
+
+    const checkNoAuthor = FormataCitationDetector.checkAuthorAndYearPlausibility('https://example.com/ohne-autor (2023)');
+    assert.strictEqual(checkNoAuthor.isValid, false);
+    assert.strictEqual(checkNoAuthor.issues.some(i => i.includes('URL ohne Urheber')), true);
+  });
+
   // Abschluss-Auswertung
   console.log('\n====================================================');
   console.log(`Ergebnis: ${passed} bestanden, ${failed} fehlgeschlagen`);

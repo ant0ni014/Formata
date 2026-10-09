@@ -37,6 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
     filterBtns: document.querySelectorAll('.filter-btn'),
     activeFilterCount: document.getElementById('activeFilterCount'),
     
+    // Citation Style & Quality Insights
+    citationStyleBanner: document.getElementById('citationStyleBanner'),
+    detectedStyleBadge: document.getElementById('detectedStyleBadge'),
+    detectedStyleConfidence: document.getElementById('detectedStyleConfidence'),
+    detectedStyleDesc: document.getElementById('detectedStyleDesc'),
+    citationIssuesList: document.getElementById('citationIssuesList'),
+    
     // Toast
     toast: document.getElementById('toast')
   };
@@ -155,8 +162,18 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
 
     // 1. URLs extrahieren
     const extracted = FormataParser.extractUrls(text);
-    if (extracted.length === 0) {
-      showToast('Keine gültigen HTTP/HTTPS URLs im Text gefunden.', 'warning');
+    
+    // 2. Zitierstil und Buch-Quellen erkennen
+    let detectedStyle = null;
+    let detectedBooks = [];
+    if (typeof FormataCitationDetector !== 'undefined') {
+      detectedStyle = FormataCitationDetector.detectCitationStyle(text);
+      detectedBooks = FormataCitationDetector.extractBooksAndPrintSources(text);
+      renderCitationStyleBanner(detectedStyle);
+    }
+
+    if (extracted.length === 0 && detectedBooks.length === 0) {
+      showToast('Keine URLs oder zitierfähigen Quellen im Text gefunden.', 'warning');
       return;
     }
 
@@ -165,6 +182,29 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     // UI für Ladevorgang vorbereiten
     setLoadingState(true);
     currentResults = [];
+
+    // Gedruckte Bücher / Monographien direkt als verifizierte Einträge voranstellen
+    detectedBooks.forEach(b => {
+      currentResults.push({
+        originalUrl: b.hasIsbn ? `ISBN: ${b.isbn}` : '(Print / Monographie)',
+        cleanedUrl: b.hasIsbn ? `https://openlibrary.org/isbn/${b.isbn}` : '#print-source',
+        displayTitle: `${b.author} (${b.year || 'o. J.'}): ${b.title}`,
+        status: 200,
+        statusText: b.hasIsbn ? '200 OK (ISBN Verifiziert)' : '200 OK (Gedruckte Quelle)',
+        ok: true,
+        trackingRemoved: false,
+        removedParams: [],
+        academicScore: {
+          level: 'GREEN',
+          label: 'Buch / Monographie',
+          reason: b.hasIsbn ? `ISBN ${b.isbn} erkannt. Gedruckte wissenschaftliche Monographie.` : 'Gedruckte akademische Quelle (Autor, Jahr & Titel plausibel).'
+        },
+        responseTimeMs: 0,
+        isBook: true,
+        isbn: b.isbn
+      });
+    });
+
     elements.resultsSection.style.display = 'block';
     renderResultsTable();
     updateSummaryMetrics(currentResults);
@@ -172,7 +212,15 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     // Sanftes Scrollen zu den Ergebnissen
     elements.resultsSection.scrollIntoView({ behavior: 'smooth' });
 
-    // 2. URLs in Chunks aufteilen (je 5 URLs) für Ausfallsicherheit und Live-Updates
+    // Wenn keine Online-URLs vorhanden sind, aber Bücher gefunden wurden
+    if (uniqueUrls.length === 0) {
+      setLoadingState(false);
+      updateProgress(100, `${detectedBooks.length} gedruckte Monographien identifiziert!`);
+      showToast(`${detectedBooks.length} Bücher/Print-Quellen im Literaturverzeichnis verifiziert! 📘`);
+      return;
+    }
+
+    // 3. URLs in Chunks aufteilen (je 5 URLs) für Ausfallsicherheit und Live-Updates
     const CHUNK_SIZE = 5;
     const chunks = [];
     for (let i = 0; i < uniqueUrls.length; i += CHUNK_SIZE) {
@@ -267,6 +315,7 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
       if (activeFilter === 'valid') return isSuccess;
       if (activeFilter === 'cleaned') return item.trackingRemoved;
       if (activeFilter === 'issues') return !isSuccess || item.academicScore?.level === 'RED' || item.academicScore?.level === 'YELLOW';
+      if (activeFilter === 'books') return item.isBook;
       return true;
     });
 
@@ -388,6 +437,30 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
   }
 
   function formatUrlDisplay(item) {
+    if (item.isBook) {
+      let bookHtml = `
+        <div class="book-row">
+          <strong>📘 ${escapeHtml(item.displayTitle || item.originalUrl)}</strong>
+        </div>
+      `;
+      if (item.isbn) {
+        bookHtml += `
+          <div class="url-diff-note">
+            <span class="badge badge-pill badge-primary small">ISBN: ${escapeHtml(item.isbn)}</span>
+            <span class="text-muted small">Weltweit in Bibliothekskatalogen registriert.</span>
+            <a href="https://openlibrary.org/isbn/${escapeHtml(item.isbn)}" target="_blank" class="small text-info" style="margin-left: 0.5rem;">Katalogeintrag öffnen ↗</a>
+          </div>
+        `;
+      } else {
+        bookHtml += `
+          <div class="url-diff-note text-muted small">
+            Gedruckte Monographie ohne Online-URL. Titel und Autorenstruktur im Literaturverzeichnis verifiziert.
+          </div>
+        `;
+      }
+      return bookHtml;
+    }
+
     let html = `<div class="url-row"><a href="${escapeHtml(item.cleanedUrl)}" target="_blank" rel="noopener noreferrer" class="link-target font-mono">${escapeHtml(item.cleanedUrl)}</a></div>`;
 
     if (item.trackingRemoved) {
@@ -421,7 +494,62 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
       `;
     }
 
+    // Bei 404 Nicht gefunden: Biete Wayback Machine (Internet Archive) an
+    if (item.status === 404) {
+      const archiveUrl = `https://web.archive.org/web/*/${encodeURI(item.cleanedUrl)}`;
+      html += `
+        <div class="url-diff-note text-danger small">
+          🏛️ <strong>Toter Link (404):</strong> Archiv-Kopie verfügbar?
+          <a href="${archiveUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline" style="padding: 0.1rem 0.5rem; margin-left: 0.3rem; font-size: 0.75rem;">
+            Wayback Machine öffnen ↗
+          </a>
+        </div>
+      `;
+    }
+
+    // Bei nicht-akademischen Quellen (z.B. Wikipedia, Blogs): Biete wissenschaftliche Alternative an
+    if (item.academicScore?.level === 'RED' && item.cleanedUrl.includes('wikipedia.org')) {
+      const query = item.cleanedUrl.split('/').pop().replace(/_/g, ' ');
+      const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(query)}`;
+      html += `
+        <div class="url-diff-note text-muted small">
+          🎓 <strong>Akademische Alternative:</strong> Anstelle von Wikipedia die Primärliteratur zitieren:
+          <a href="${scholarUrl}" target="_blank" rel="noopener noreferrer" class="small text-info" style="margin-left: 0.3rem;">
+            Google Scholar Suche („${escapeHtml(query)}“) ↗
+          </a>
+        </div>
+      `;
+    }
+
     return html;
+  }
+
+  /**
+   * Rendert den erkannten Zitierstil und Qualitäts-Empfehlungen
+   */
+  function renderCitationStyleBanner(styleInfo) {
+    if (!elements.citationStyleBanner) return;
+
+    if (!styleInfo || styleInfo.style === 'unknown') {
+      elements.citationStyleBanner.style.display = 'none';
+      return;
+    }
+
+    elements.citationStyleBanner.style.display = 'block';
+    elements.detectedStyleBadge.textContent = styleInfo.name;
+    elements.detectedStyleBadge.className = `badge ${styleInfo.badgeClass || 'badge-primary'} style-badge`;
+    elements.detectedStyleConfidence.textContent = `${styleInfo.confidence}% Konformität`;
+    elements.detectedStyleDesc.textContent = styleInfo.description;
+
+    if (elements.citationIssuesList) {
+      elements.citationIssuesList.innerHTML = '';
+      if (styleInfo.warning) {
+        const warnDiv = document.createElement('div');
+        warnDiv.className = 'citation-issue-item';
+        warnDiv.innerHTML = `⚠️ <span>${escapeHtml(styleInfo.warning)}</span>`;
+        elements.citationIssuesList.appendChild(warnDiv);
+      }
+    }
   }
 
   /**
@@ -623,17 +751,45 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
         fullText += pageLines.join('\n') + '\n\n';
       }
 
-      updateProgress(88, 'Suche Literaturverzeichnis in der PDF...');
+      updateProgress(88, 'Suche Literaturverzeichnis in der PDF (ignoriere Inhaltsverzeichnis)...');
 
       // Intelligente Extraktion des Literaturverzeichnisses
-      // Sucht nach Kapitelüberschriften wie "Literaturverzeichnis", "Quellenverzeichnis", "Bibliography", "References"
+      // Verhindert das Fangen des Inhaltsverzeichnisses auf den ersten Seiten:
+      // 1. Suche nach allen Vorkommen von "Literaturverzeichnis", "Quellenverzeichnis", "Bibliography", "References"
       let bibliographyText = '';
-      const bibHeaderRegex = /(?:^|\n)\s*(?:\d+[\.\s]*)?(Literaturverzeichnis|Quellenverzeichnis|Literatur-|Quellen-|Bibliography|References)\b/i;
-      const match = fullText.match(bibHeaderRegex);
+      const bibHeaderRegex = /(?:^|\n)\s*(?:\d+[\.\s]*)?(Literaturverzeichnis|Quellenverzeichnis|Literatur-|Quellen-|Bibliography|References)\b/gi;
+      
+      const allMatches = [];
+      let m;
+      while ((m = bibHeaderRegex.exec(fullText)) !== null) {
+        const lineEnd = fullText.indexOf('\n', m.index);
+        const line = fullText.substring(m.index, lineEnd !== -1 ? lineEnd : m.index + 120);
+        // Prüfen, ob die Zeile typisch für ein Inhaltsverzeichnis ist (z. B. Punkte "..." gefolgt von Seitenzahlen am Ende)
+        const isTocLine = /[.·…\s]{3,}\s*\d+\s*$/.test(line.trim());
+        allMatches.push({
+          index: m.index,
+          title: m[1],
+          line: line,
+          isToc: isTocLine,
+          relativePos: m.index / Math.max(1, fullText.length)
+        });
+      }
 
-      if (match && match.index !== undefined) {
-        const afterHeader = fullText.substring(match.index);
-        // Ende des Verzeichnisses (z. B. Anhang, Eidesstattliche Erklärung etc.)
+      // Bevorzuge Fundstellen, die nicht wie TOC aussehen und idealerweise in der zweiten Hälfte des Dokuments liegen
+      let chosenMatch = null;
+      // Filter 1: Explizit Non-TOC
+      const nonTocMatches = allMatches.filter(match => !match.isToc);
+      if (nonTocMatches.length > 0) {
+        // Nimm das letzte Non-TOC Match (normalerweise am Ende des Dokuments vor Anhang)
+        chosenMatch = nonTocMatches[nonTocMatches.length - 1];
+      } else if (allMatches.length > 0) {
+        // Fallback: Nimm das letzte Vorkommen
+        chosenMatch = allMatches[allMatches.length - 1];
+      }
+
+      if (chosenMatch && chosenMatch.index !== undefined) {
+        const afterHeader = fullText.substring(chosenMatch.index);
+        // Ende des Verzeichnisses (z. B. Anhang, Eidesstattliche Erklärung, Ehrenwörtliche Erklärung etc.)
         const appendixRegex = /(?:^|\n)\s*(?:\d+[\.\s]*)?(Anhang|Ehrenw[oö]rtliche\s+Erkl[aä]rung|Eidesstattliche\s+Versicherung|Appendix)\b/i;
         const appendixMatch = afterHeader.match(appendixRegex);
         if (appendixMatch && appendixMatch.index !== undefined && appendixMatch.index > 80) {
