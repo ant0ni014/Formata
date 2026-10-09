@@ -8,8 +8,8 @@
 const FormataParser = (() => {
   // Regex für URL-Kandidaten (HTTP/HTTPS)
   const RAW_URL_REGEX = /https?:\/\/[^\s<>"]+/gi;
-  // Regex für DOIs (z.B. doi: 10.1016/... oder https://doi.org/10....)
-  const DOI_REGEX = /\bdoi\s*:\s*(10\.\d{4,9}\/[^\s\n\r]+)/gi;
+  // Regex für DOIs (z.B. doi: 10.1016/... oder doi 10.1007/... oder https://doi.org/10....)
+  const DOI_REGEX = /\bdoi(?::|\s)\s*(10\.\d{4,9}\/[^\s\n\r]+)/gi;
 
   /**
    * Bereinigt nachgestellte Satzzeichen, die typischerweise am Ende
@@ -33,7 +33,7 @@ const FormataParser = (() => {
 
   /**
    * Vorverarbeitung für typische PDF-Kopier-Artefakte:
-   * - Zeilenumbrüche mitten in URLs vor Zugriffsvermerken ([Zugriff: ...])
+   * - Zeilenumbrüche mitten in URLs vor diversen Zugriffs-/Stand-Vermerken
    * - Zeilenumbrüche vor/innerhalb von DOI-Bezeichnern (z. B. "doi:\n10.1109/..." oder "10.6028/\nNIST...")
    * - Leerzeichenartefakte in Domains (z. B. "https://www. bsi. bund. de/")
    */
@@ -42,26 +42,53 @@ const FormataParser = (() => {
 
     let text = rawText.replace(/\r\n/g, '\n');
 
-    // 1. Repariere Zeilenumbrüche innerhalb von DOIs
-    text = text.replace(/doi:\s*\n\s*(10\.\d{4,9})/gi, 'doi: $1');
-    text = text.replace(/doi:\s*(10\.\d{4,9}\/)\s*\n\s*([A-Za-z0-9._-]+)/gi, 'doi: $1$2');
+    // 1. Repariere Zeilenumbrüche innerhalb/vor DOIs
+    text = text.replace(/doi(?::|\s)\s*\n\s*(10\.\d{4,9})/gi, 'doi: $1');
+    text = text.replace(/doi(?::|\s)\s*(10\.\d{4,9}\/)\s*\n\s*([A-Za-z0-9._-]+)/gi, 'doi: $1$2');
 
-    // 2. Repariere Leerzeichen in Domain-Namen (z.B. "https://www. bsi. bund. de/")
+    // 2. Repariere Leerzeichen in Domain-Namen (z. B. "https://www. bsi. bund. de/")
     text = text.replace(/https?:\/\/\s*www\.\s*(?:[a-zA-Z0-9_-]+\s*\.\s*)+[a-zA-Z]{2,6}\s*\//gi, (m) => m.replace(/\s+/g, ''));
 
-    // 3. Repariere URLs, die vor Zugriffsdaten über Zeilenumbrüche oder Leerzeichen umgebrochen wurden
-    // Matcht von "https://" bis zur Zugriffsklausel, aber bricht ab, falls ein zweites http vorkommt
-    text = text.replace(/(https?:\/\/[^\s\[\(\>\n\r]+(?:\s*\n\s*[^\s\[\(\>\n\r]+)+)(\s*(?:\[|\(|,?\s*)Zugriff|\s*\[Stand)/gi, (fullMatch, urlPart, accessTag) => {
+    // 3. Repariere URLs vor Zugriffs-/Stand-Vermerken über Zeilenumbrüche
+    // Erkennt: Zugriff, Stand, abgerufen, eingesehen, online, verfügbar, retrieved, accessed, etc.
+    const ACCESS_KEYWORDS = '(?:Zugriff|Stand|abgerufen|eingesehen|online|verf[uü]gbar|retrieved|accessed|letzter\\s+Abruf)';
+    const accessPattern = new RegExp(
+      '(' +
+      'https?:\\/\\/[^\\s\\[\\(\\>\\n\\r]+' +
+      '(?:\\s*\\n\\s*[^\\s\\[\\(\\>\\n\\r]+)+' +
+      ')' +
+      '(\\s*(?:[\\[\\(,;\\s]|\\b)' + ACCESS_KEYWORDS + ')',
+      'gi'
+    );
+
+    text = text.replace(accessPattern, (fullMatch, urlPart, accessTag) => {
       const cleanUrl = urlPart.replace(/\s+/g, '');
       return cleanUrl + ' ' + accessTag;
     });
 
     // 4. Einzelne Spaces in Pfadsegmenten vor Zugriff reparieren (z. B. "/2025- 03/")
-    text = text.replace(/(https?:\/\/[^\s\[\(\>]+(?:\s+[^\s\[\(\>]+)+)(\s*(?:\[|\(|,?\s*)Zugriff|\s*\[Stand)/gi, (m, urlPart, accessTag) => {
+    const spacePattern = new RegExp(
+      '(' +
+      'https?:\\/\\/[^\\s\\[\\(\\>]+' +
+      '(?:\\s+[^\\s\\[\\(\\>]+)+' +
+      ')' +
+      '(\\s*(?:[\\[\\(,;\\s]|\\b)' + ACCESS_KEYWORDS + ')',
+      'gi'
+    );
+
+    text = text.replace(spacePattern, (m, urlPart, accessTag) => {
       if (!urlPart.includes('http://') && !urlPart.includes('https://', 7)) {
         return urlPart.replace(/\s+/g, '') + ' ' + accessTag;
       }
       return m;
+    });
+
+    // 5. Repariere URLs, die auf Slash / Bindestrich / Unterstrich enden und in der nächsten Zeile weitergehen (ohne Zugriffsvermerk)
+    text = text.replace(/(https?:\/\/[^\s\n\r]+[/_\-])\n\s*([a-zA-Z0-9._~%/-]+)(?!\s*\()/gi, (m, p1, p2) => {
+      if (/^[A-Z][a-z]+,\s*[A-Z]/.test(p2) || /^\d{4}:/.test(p2)) {
+        return m;
+      }
+      return p1 + p2;
     });
 
     return text;

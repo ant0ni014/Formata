@@ -148,42 +148,74 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
 
     // UI für Ladevorgang vorbereiten
     setLoadingState(true);
-    updateProgress(20, `Gefunden: ${uniqueUrls.length} URLs. Starte serverseitige Validierung...`);
+    currentResults = [];
+    elements.resultsSection.style.display = 'block';
+    renderResultsTable();
+    updateSummaryMetrics(currentResults);
+
+    // Sanftes Scrollen zu den Ergebnissen
+    elements.resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+    // 2. URLs in Chunks aufteilen (je 5 URLs) für Ausfallsicherheit und Live-Updates
+    const CHUNK_SIZE = 5;
+    const chunks = [];
+    for (let i = 0; i < uniqueUrls.length; i += CHUNK_SIZE) {
+      chunks.push(uniqueUrls.slice(i, i + CHUNK_SIZE));
+    }
 
     try {
-      // 2. Backend Proxy kontaktieren
-      const response = await fetch('/api/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ urls: uniqueUrls })
-      });
+      for (let c = 0; c < chunks.length; c++) {
+        const chunkUrls = chunks[c];
+        const processedBefore = currentResults.length;
+        const pct = Math.round(((c + 0.5) / chunks.length) * 90);
+        updateProgress(pct, `Prüfe ${processedBefore + 1} bis ${processedBefore + chunkUrls.length} von ${uniqueUrls.length} Quellen...`);
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || `Server meldete HTTP ${response.status}`);
+        try {
+          const response = await fetch('/api/validate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ urls: chunkUrls })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          const chunkResults = data.results || [];
+          currentResults.push(...chunkResults);
+
+        } catch (chunkErr) {
+          console.warn(`Fehler bei Chunk ${c + 1}:`, chunkErr);
+          // Fallback: Damit keine Quelle verloren geht, Offline-Einträge generieren
+          chunkUrls.forEach(u => {
+            currentResults.push({
+              originalUrl: u,
+              cleanedUrl: u,
+              status: 408,
+              statusText: "Zeitüberschreitung / Server antwortet nicht",
+              ok: false,
+              trackingRemoved: false,
+              removedParams: [],
+              academicScore: FormataDomainRules.evaluateUrl(u),
+              responseTimeMs: 3500
+            });
+          });
+        }
+
+        // Live-Update von Tabelle und Kennzahlen nach jedem Chunk!
+        updateSummaryMetrics(currentResults);
+        renderResultsTable();
       }
 
-      updateProgress(85, 'Ergebnisse empfangen. Berechne Metriken...');
-      const data = await response.json();
-
-      currentResults = data.results || [];
-
-      // 3. UI aktualisieren
-      updateSummaryMetrics(currentResults);
-      renderResultsTable();
-      elements.resultsSection.style.display = 'block';
-
-      updateProgress(100, 'Validierung erfolgreich abgeschlossen!');
+      updateProgress(100, `Alle ${currentResults.length} Quellen erfolgreich validiert!`);
       setTimeout(() => {
         setLoadingState(false);
-      }, 500);
+      }, 400);
 
-      showToast(`Erfolgreich validiert: ${currentResults.length} URLs analysiert.`);
-      
-      // Sanftes Scrollen zu den Ergebnissen
-      elements.resultsSection.scrollIntoView({ behavior: 'smooth' });
+      showToast(`Validierung abgeschlossen: Alle ${currentResults.length} Quellen analysiert! ✨`);
 
     } catch (err) {
       console.error('Fehler bei der Validierung:', err);

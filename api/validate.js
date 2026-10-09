@@ -154,7 +154,7 @@ function evaluateAcademicScore(urlString) {
  * Hartes Timeout: 5000 ms
  */
 async function checkLinkReachability(targetUrl) {
-  const timeoutMs = 5000;
+  const timeoutMs = 3500;
   const startTime = Date.now();
   const headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 FormataAcademicValidator/1.0",
@@ -398,8 +398,8 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: "Maximal 50 URLs pro Prüfvorgang zulässig." });
     }
 
-    // Validieren
-    const results = await processBatch(urls, 5);
+    // Validieren mit Concurrency Pool (10 parallel)
+    const results = await processBatch(urls, 10);
 
     return res.status(200).json({
       success: true,
