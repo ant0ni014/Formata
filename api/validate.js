@@ -245,6 +245,60 @@ async function checkLinkReachability(targetUrl) {
 }
 
 /**
+ * Sucht bei HTTP 404 nach typischen Silbentrennungsfehlern (fehlende Bindestriche durch PDF-Umbruch)
+ */
+async function findHyphenCorrection(failedUrl) {
+  try {
+    const parsed = new URL(failedUrl);
+    const path = parsed.pathname;
+    const joinWords = ['for', 'work', 'incremental', 'failover', 'and', 'with', 'together'];
+    const candidates = new Set();
+
+    for (const word of joinWords) {
+      const reg = new RegExp('([a-z]{3,})(' + word + ')(?=[/.-]|$)', 'gi');
+      if (reg.test(path)) {
+        const fixedPath = path.replace(reg, '$1-$2');
+        const fixedUrl = new URL(parsed.toString());
+        fixedUrl.pathname = fixedPath;
+        candidates.add(fixedUrl.toString());
+
+        if (fixedUrl.pathname.includes('/de/blogs/')) {
+          const noDe = new URL(fixedUrl.toString());
+          noDe.pathname = noDe.pathname.replace('/de/blogs/', '/blogs/');
+          candidates.add(noDe.toString());
+        }
+      }
+    }
+
+    for (const cand of candidates) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(cand, {
+          method: 'GET',
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          },
+          redirect: 'follow',
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          return {
+            suggestedUrl: cand,
+            reason: "Tippfehler im Pfad erkannt (fehlender Bindestrich, z. B. durch Silbentrennung im PDF). Korrigierte URL ist erreichbar!"
+          };
+        }
+      } catch (_) {}
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * Concurrency Pool zur Vermeidung von Socket-Überlastung
  */
 async function processBatch(urls, concurrency = 5) {
@@ -262,6 +316,12 @@ async function processBatch(urls, concurrency = 5) {
       let reachability;
       try {
         reachability = await checkLinkReachability(cleanedUrl);
+        if (!reachability.ok && reachability.status === 404) {
+          const suggestion = await findHyphenCorrection(cleanedUrl);
+          if (suggestion) {
+            reachability.suggestion = suggestion;
+          }
+        }
       } catch (e) {
         reachability = {
           status: 0,

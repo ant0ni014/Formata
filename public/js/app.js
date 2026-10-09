@@ -169,9 +169,9 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
    */
   function updateSummaryMetrics(results) {
     const total = results.length;
-    const valid = results.filter(r => r.ok && r.status === 200).length;
+    const valid = results.filter(r => r.ok || (r.status >= 200 && r.status < 300)).length;
     const cleaned = results.filter(r => r.trackingRemoved).length;
-    const issues = results.filter(r => !r.ok || r.academicScore?.level === 'RED').length;
+    const issues = results.filter(r => (!r.ok && !(r.status >= 200 && r.status < 300)) || r.academicScore?.level === 'RED').length;
 
     elements.statTotal.textContent = total;
     elements.statValid.textContent = valid;
@@ -186,10 +186,11 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
     elements.resultsTableBody.innerHTML = '';
 
     const filtered = currentResults.filter(item => {
+      const isSuccess = item.ok || (item.status >= 200 && item.status < 300);
       if (activeFilter === 'all') return true;
-      if (activeFilter === 'valid') return item.ok && item.status === 200;
+      if (activeFilter === 'valid') return isSuccess;
       if (activeFilter === 'cleaned') return item.trackingRemoved;
-      if (activeFilter === 'issues') return !item.ok || item.academicScore?.level === 'RED' || item.academicScore?.level === 'YELLOW';
+      if (activeFilter === 'issues') return !isSuccess || item.academicScore?.level === 'RED' || item.academicScore?.level === 'YELLOW';
       return true;
     });
 
@@ -212,7 +213,7 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
       // Akademische Bewertung
       const academicBadge = getAcademicBadge(item.academicScore);
 
-      // Diff Anzeige / URL Hygiene
+      // Diff Anzeige / URL Hygiene / Suggestions
       const urlDisplayHtml = formatUrlDisplay(item);
 
       // Reaktionszeit
@@ -242,19 +243,40 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
         showToast('URL in Zwischenablage kopiert!');
       });
     });
+
+    // Event Listener für "Korrektur übernehmen" bei Tippfehlern
+    document.querySelectorAll('.apply-sugg-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index, 10);
+        const item = currentResults[idx];
+        if (item && item.suggestion) {
+          item.cleanedUrl = item.suggestion.suggestedUrl;
+          item.status = 200;
+          item.ok = true;
+          item.statusText = "200 OK (Korrigiert)";
+          item.suggestionApplied = true;
+          delete item.suggestion;
+          updateSummaryMetrics(currentResults);
+          renderResultsTable();
+          showToast('Korrektur erfolgreich übernommen! URL ist nun erreichbar (200 OK). ✨');
+        }
+      });
+    });
   }
 
   function getRowHighlightClass(item) {
-    if (!item.ok || item.academicScore?.level === 'RED') return 'row-danger';
+    const isSuccess = item.ok || (item.status >= 200 && item.status < 300);
+    if (!isSuccess || item.academicScore?.level === 'RED') return 'row-danger';
     if (item.trackingRemoved || item.academicScore?.level === 'YELLOW') return 'row-warning';
     return '';
   }
 
   function getStatusBadge(item) {
-    if (item.ok && item.status === 200) {
-      return `<span class="badge badge-success">🟢 200 OK</span>`;
+    if (item.ok || (item.status >= 200 && item.status < 300)) {
+      const label = item.status === 202 ? '202 Accepted' : `${item.status} OK`;
+      return `<span class="badge badge-success">🟢 ${label}</span>`;
     }
-    if (item.status === 301 || item.status === 302) {
+    if (item.status === 301 || item.status === 302 || item.status === 307 || item.status === 308) {
       return `<span class="badge badge-warning">🟡 ${item.status} Redirect</span>`;
     }
     if (item.status === 404) {
@@ -306,6 +328,19 @@ URL: https://www.harvard.edu/, Zugriff am: 08.02.2024.`;
       html += `
         <div class="url-diff-note text-info small">
           ↪ Weitergeleitet zu: <a href="${escapeHtml(item.finalUrl)}" target="_blank" class="font-mono">${escapeHtml(item.finalUrl)}</a>
+        </div>
+      `;
+    }
+
+    if (item.suggestion && item.suggestion.suggestedUrl) {
+      const itemIdx = currentResults.indexOf(item);
+      html += `
+        <div class="url-diff-note text-warning">
+          💡 <strong>Tippfehler im Pfad erkannt:</strong> ${escapeHtml(item.suggestion.reason)}
+          <br>Erreichbare URL: <a href="${escapeHtml(item.suggestion.suggestedUrl)}" target="_blank" class="font-mono">${escapeHtml(item.suggestion.suggestedUrl)}</a>
+          <button class="btn btn-sm btn-secondary apply-sugg-btn" data-index="${itemIdx}" style="margin-left: 0.5rem; padding: 0.15rem 0.6rem; font-size: 0.78rem;">
+            ✨ Korrektur übernehmen
+          </button>
         </div>
       `;
     }
